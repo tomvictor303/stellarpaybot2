@@ -7,10 +7,8 @@ import time
 config = configparser.ConfigParser()
 config.read('config.txt')
 
-# Get the values from the config file
+# Get values from the config file
 DISTRIBUTOR_SECRET_KEY = config['DEFAULT']['DISTRIBUTOR_SECRET_KEY']
-ASSET_CODE = config['DEFAULT'].get('ASSET_CODE', None)
-ISSUER_ADDRESS = config['DEFAULT'].get('ISSUER_ADDRESS', None)
 IS_DEVELOPMENT = config['DEFAULT'].getboolean('IS_DEVELOPMENT')
 
 # Determine the network to use
@@ -27,34 +25,25 @@ server = Server(horizon_url)
 # Load the source account
 distributor_keypair = Keypair.from_secret(DISTRIBUTOR_SECRET_KEY)
 
-# Determine the asset to use
-if ASSET_CODE and ASSET_CODE.upper() == 'XLM':
-    asset = Asset.native()
-elif ASSET_CODE and ISSUER_ADDRESS:
-    asset = Asset(ASSET_CODE, ISSUER_ADDRESS)
-else:
-    raise ValueError("Invalid configuration: ASSET_CODE must be 'XLM' or specify both ASSET_CODE and ISSUER_ADDRESS.")
-
 # Load the Excel file
 workbook = openpyxl.load_workbook('database.xlsx')
 sheet = workbook.active
 
 def log_result(row_index, success, message=""):
     """
-    Log the result of the transaction in column D of the specified row.
+    Log the result of the transaction in column F of the specified row.
 
     :param row_index: Index of the row to log the result (1-based index)
     :param success: Boolean indicating whether the transaction was successful
     :param message: The message to log (empty for success)
     """
     if success:
-        sheet.cell(row=row_index, column=4).value = "Success"
+        sheet.cell(row=row_index, column=6).value = "Success"
     else:
-        sheet.cell(row=row_index, column=4).value = message
+        sheet.cell(row=row_index, column=6).value = message
 
-def send_transaction(destination_address, amount, row_index, min_gas_fee = 100):
+def send_transaction(destination_address, amount, asset_code, issuer_address, row_index, min_gas_fee=100):
     try:
-        # Ensure amount has a maximum of 7 decimal places
         amount = f"{float(amount):.7f}"
 
         # Reload the source account to get the latest sequence number
@@ -64,7 +53,15 @@ def send_transaction(destination_address, amount, row_index, min_gas_fee = 100):
         base_fee = server.fetch_base_fee()
         base_fee = max(base_fee, min_gas_fee)
 
-        # Build the transaction with a 100-second timeout
+        # Determine the asset
+        if asset_code.upper() == 'XLM':
+            asset = Asset.native()
+        elif asset_code and issuer_address:
+            asset = Asset(asset_code, issuer_address)
+        else:
+            raise ValueError("Invalid asset info. Must provide 'XLM' or both asset code and issuer address.")
+
+        # Build transaction
         transaction = (
             TransactionBuilder(
                 source_account=distributor_account,
@@ -72,23 +69,19 @@ def send_transaction(destination_address, amount, row_index, min_gas_fee = 100):
                 base_fee=base_fee,
             )
             .append_payment_op(destination=destination_address, amount=str(amount), asset=asset)
-            .set_timeout(100)  # 100-second timeout
+            .set_timeout(100)
             .build()
         )
 
-        # Sign the transaction
         transaction.sign(distributor_keypair)
-
-        # Submit the transaction
         response = server.submit_transaction(transaction)
 
-        # Check response for success
         if response.get('successful', False):
-            print(f"Transaction to {destination_address} for {amount} {ASSET_CODE}: Success")
+            print(f"Transaction to {destination_address} for {amount} {asset_code}: Success")
             log_result(row_index, True)
         else:
             error_message = f"Error - {response}"
-            print(f"Transaction to {destination_address} for {amount} {ASSET_CODE}: {error_message}")
+            print(f"Transaction to {destination_address} for {amount} {asset_code}: {error_message}")
             log_result(row_index, False, error_message)
 
     except Exception as e:
@@ -130,18 +123,18 @@ def send_transaction(destination_address, amount, row_index, min_gas_fee = 100):
             print(error_message)
             log_result(row_index, False, error_message)
 
-# Print message indicating the start of transactions
+# Begin processing
 print("Now starting transactions")
 
-# Iterate over the rows in the Excel file starting from the first row
-for row_index, row in enumerate(sheet.iter_rows(min_row=1, max_col=2, values_only=True), start=1):
-    destination_address, amount = row
+# Iterate over rows: col A = destination, B = amount, C = asset_code, D = issuer_address
+for row_index, row in enumerate(sheet.iter_rows(min_row=1, max_col=4, values_only=True), start=1):
+    destination_address, amount, asset_code, issuer_address = row
 
     # Stop the loop if the destination address is empty
     if not destination_address:
         break
 
-    send_transaction(destination_address, amount, row_index)
+    send_transaction(destination_address, amount, asset_code, issuer_address, row_index)
 
 # Save the updated Excel file
 workbook.save('database.xlsx')
