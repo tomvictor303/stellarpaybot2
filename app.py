@@ -88,7 +88,7 @@ def send_transaction(destination_address, amount, asset_code, issuer_address, ro
         if e.status == 504:
             print("504 Gateway Timeout. Retrying...")
             time.sleep(5)  # Delay before retrying
-            send_transaction(destination_address, amount, row_index)
+            send_transaction(destination_address, amount, asset_code, issuer_address, row_index)
         elif (
             e.extras is not None and 
             isinstance(e.extras.get('result_codes'), dict) and 
@@ -96,7 +96,7 @@ def send_transaction(destination_address, amount, asset_code, issuer_address, ro
         ):
             print("Bad sequence number. Reloading account and retrying...")
             time.sleep(1)  # Brief delay before retrying
-            send_transaction(destination_address, amount, row_index)
+            send_transaction(destination_address, amount, asset_code, issuer_address, row_index)
         elif (
             e.extras is not None and 
             isinstance(e.extras.get('result_codes'), dict) and 
@@ -104,7 +104,7 @@ def send_transaction(destination_address, amount, asset_code, issuer_address, ro
         ):
             print("Transaction time out. Retrying...")
             time.sleep(1)  # Brief delay before retrying
-            send_transaction(destination_address, amount, row_index)
+            send_transaction(destination_address, amount, asset_code, issuer_address, row_index)
         elif (
             e.extras is not None and 
             isinstance(e.extras.get('result_codes'), dict) and 
@@ -113,7 +113,7 @@ def send_transaction(destination_address, amount, asset_code, issuer_address, ro
             if min_gas_fee < 2000:
                 print("Insufficient fee. Retrying with "+ str(2 * min_gas_fee) +" Stroops...")
                 time.sleep(1)  # Brief delay before retrying
-                send_transaction(destination_address, amount, row_index, 2 * min_gas_fee )
+                send_transaction(destination_address, amount, asset_code, issuer_address, row_index, 2 * min_gas_fee )
             else:
                 print("Network is too busy at this time. Please try again this transaction at further time.")
                 error_message = "Network is too busy at this time. Please try again this transaction at further time."
