@@ -85,31 +85,34 @@ def send_transaction(destination_address, amount, asset_code, issuer_address, ro
             log_result(row_index, False, error_message)
 
     except Exception as e:
-        if e.status == 504:
+        if hasattr(e, 'status') and e.status == 504:
             print("504 Gateway Timeout. Retrying...")
             time.sleep(5)  # Delay before retrying
             send_transaction(destination_address, amount, asset_code, issuer_address, row_index)
         elif (
-            e.extras is not None and 
-            isinstance(e.extras.get('result_codes'), dict) and 
-            e.extras['result_codes'].get('transaction') == 'tx_bad_seq'
-        ):
+			hasattr(e, 'extras') and 
+			e.extras is not None and 
+			isinstance(e.extras.get('result_codes'), dict) and 
+			e.extras['result_codes'].get('transaction') == 'tx_bad_seq'
+		):
             print("Bad sequence number. Reloading account and retrying...")
             time.sleep(1)  # Brief delay before retrying
             send_transaction(destination_address, amount, asset_code, issuer_address, row_index)
         elif (
-            e.extras is not None and 
-            isinstance(e.extras.get('result_codes'), dict) and 
-            e.extras['result_codes'].get('transaction') == 'tx_too_late'
-        ):
+			hasattr(e, 'extras') and 
+			e.extras is not None and 
+			isinstance(e.extras.get('result_codes'), dict) and 
+			e.extras['result_codes'].get('transaction') == 'tx_too_late'
+		):
             print("Transaction time out. Retrying...")
             time.sleep(1)  # Brief delay before retrying
             send_transaction(destination_address, amount, asset_code, issuer_address, row_index)
         elif (
-            e.extras is not None and 
-            isinstance(e.extras.get('result_codes'), dict) and 
-            e.extras['result_codes'].get('transaction') == 'tx_insufficient_fee'
-        ):
+			hasattr(e, 'extras') and 
+			e.extras is not None and 
+			isinstance(e.extras.get('result_codes'), dict) and 
+			e.extras['result_codes'].get('transaction') == 'tx_insufficient_fee'
+		):
             if min_gas_fee < 2000:
                 print("Insufficient fee. Retrying with "+ str(2 * min_gas_fee) +" Stroops...")
                 time.sleep(1)  # Brief delay before retrying
